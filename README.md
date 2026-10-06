@@ -7,7 +7,7 @@
 
 A free, open-source screenshot tool for macOS. Capture an area, a window, or the whole screen, then copy, save, drag, or pin it in one step. Or copy the text out of anything on screen.
 
-> **Early preview.** Capture, annotation, screen recording (MP4 and GIF), Quick Access, Pin, and Copy Text work today. Scrolling capture is next.
+> **Early preview.** Capture, annotation, screen recording (MP4 and GIF), Quick Access, Pin, and Copy Text work today. Scrolling capture is a demo: try it, but don't rely on it yet.
 
 ![The SnapStash window: capture buttons and recent captures](docs/screenshots/home.jpg)
 
@@ -40,6 +40,11 @@ After setup, SnapStash shows the three things to know and a <b>Try it now</b> bu
   - A small control shows the time and a Stop button. It's left out of the video, as is a dashed outline marking the recorded area. Press ⌥⇧6 again, click Stop, or use the menu bar to finish.
   - Saves an MP4 (H.264, up to 4K, 30 or 60 fps) or an animated GIF sized for sharing. Any MP4 can be turned into a GIF from its thumbnail.
   - Can include the Mac's own sound (Settings › Recording). The microphone is never recorded.
+- **Scrolling capture (⌥⇧7), demo only.** Not ready for everyday use yet; expect rough edges.
+  - Select an area, a window or the full screen, then scroll down slowly. SnapStash joins what scrolls past into one tall image, keeping sticky headers and footers once.
+  - A dashed outline marks the area and a small control shows the length so far. Press ⌥⇧7 again or click **Done** to finish.
+  - If you scroll too fast it says so; scroll back up a little and continue more slowly.
+  - Limits: scroll downward only, and keep the window still while capturing. Up to 20,000 pixels tall.
 - **Copy Text from Screen (⌥⇧2).** Select an area and its text goes straight to the clipboard. Recognition happens on your Mac with Apple's Vision framework.
 - **Annotate.**
 
@@ -142,6 +147,7 @@ cd SnapStash
 | `CaptureCoordinator.swift` | Runs a capture from shortcut to output; permission handling |
 | `Editor.swift` | The annotation editor: tools, canvas, undo, and rendering the result |
 | `Recorder.swift` | Screen recording (ScreenCaptureKit to MP4) and GIF export |
+| `ScrollingCapture.swift` | Scrolling capture (demo): grabs the area while you scroll and joins the frames |
 | `CaptureOutput.swift` | Copy, save and drag; on-device text recognition; on-screen messages |
 | `QuickAccess.swift` | Corner thumbnails and pinned screenshots |
 | `MainWindow.swift` | The SnapStash window: setup and first-run cards, capture buttons, gallery |
@@ -155,7 +161,8 @@ cd SnapStash
 - [x] Full screen of one display or all displays
 - [x] Screen recording to MP4 and GIF
 - [x] Annotation: arrows, boxes, text, highlighter, numbered steps, blur, crop
-- [ ] Scrolling capture
+- [x] Scrolling capture (demo)
+- [ ] Scrolling capture: automatic scrolling and sideways scrolling
 
 ## Releasing
 

@@ -21,6 +21,11 @@ final class CaptureCoordinator {
             ScreenRecorder.shared.stop()
             return
         }
+        // Likewise, the scrolling capture shortcut finishes one in progress.
+        if action == .scrolling, ScrollingCapture.shared.isActive {
+            ScrollingCapture.shared.finish()
+            return
+        }
         guard !isCapturing else { return }
         guard ensurePermission() else { return }
         isCapturing = true
@@ -61,6 +66,12 @@ final class CaptureCoordinator {
         let result = await select(frozen: frozen, windows: windows, windowMode: action == .window)
         if action == .record {
             try await ScreenRecorder.shared.begin(result, content: content)
+            return
+        }
+        if action == .scrolling {
+            try ScrollingCapture.shared.begin(result, content: content) { [weak self] capture in
+                self?.finish(capture)
+            }
             return
         }
         switch result {
