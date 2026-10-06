@@ -412,6 +412,7 @@ private struct GalleryCard: View {
                     HStack(spacing: 8) {
                         IconButton(symbol: "doc.on.doc", help: "Copy") { library.copy(item) }
                         if item.isStill {
+                            IconButton(symbol: "pencil.tip.crop.circle", help: "Edit") { library.edit(item) }
                             IconButton(symbol: "pin", help: "Pin to screen") { library.pin(item) }
                             IconButton(symbol: "text.viewfinder", help: "Copy text") { library.copyText(item) }
                         } else {
@@ -444,6 +445,7 @@ private struct GalleryCard: View {
             Button("Open") { library.open(item) }
             Button("Copy") { library.copy(item) }
             if item.isStill {
+                Button("Edit…") { library.edit(item) }
                 Button("Copy Text") { library.copyText(item) }
                 Button("Pin to Screen") { library.pin(item) }
             }

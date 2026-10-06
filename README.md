@@ -7,7 +7,7 @@
 
 A free, open-source screenshot tool for macOS. Capture an area, a window, or the whole screen, then copy, save, drag, or pin it in one step. Or copy the text out of anything on screen.
 
-> **Early preview.** Capture, screen recording (MP4 and GIF), Quick Access, Pin, and Copy Text work today. Annotation and scrolling capture are next.
+> **Early preview.** Capture, annotation, screen recording (MP4 and GIF), Quick Access, Pin, and Copy Text work today. Scrolling capture is next.
 
 ![The SnapStash window: capture buttons and recent captures](docs/screenshots/home.jpg)
 
@@ -41,8 +41,22 @@ After setup, SnapStash shows the three things to know and a <b>Try it now</b> bu
   - Saves an MP4 (H.264, up to 4K, 30 or 60 fps) or an animated GIF sized for sharing. Any MP4 can be turned into a GIF from its thumbnail.
   - Can include the Mac's own sound (Settings › Recording). The microphone is never recorded.
 - **Copy Text from Screen (⌥⇧2).** Select an area and its text goes straight to the clipboard. Recognition happens on your Mac with Apple's Vision framework.
+- **Annotate.**
+
+  ![The editor: arrow, box, text, highlighter, numbered steps and blur on a capture](docs/screenshots/editor.jpg)
+
+  - Click **Edit** on the thumbnail (or double-click it), or **Edit** on any capture in the gallery. To open the editor after every capture, use Settings › Captures.
+  - Tools, each on one key:
+    - Select (V), Arrow (A) and Box (R).
+    - Text (T): click and type.
+    - Highlighter (H) and Numbered steps (N). Steps renumber themselves when you delete one.
+    - Blur (B): pixelates the area, so the text underneath can't be recovered.
+    - Crop (C): drag the area, then press Return.
+  - Eight colors (keys 1–8) and three sizes. Hold Shift for straight 45° lines or a perfect square.
+  - Select a mark to move it, drag its handles, nudge it with the arrow keys, or delete it with ⌫. Undo and redo with ⌘Z and ⇧⌘Z.
+  - **Save** (⌘S) keeps the edited image as a new capture; the original is never changed. **Copy** (⌘C) puts it on the clipboard. Closing with unsaved edits asks first.
 - **Quick Access.** After each capture, a thumbnail appears in the corner:
-  - **Copy**, **Save** or **Pin** it, or copy the text in it.
+  - **Copy**, **Save**, **Edit** or **Pin** it, or copy the text in it.
   - Drag it straight into Mail, Slack or Finder.
   - It stays put while you hover it, and several captures stack up.
 - **Pin to screen.** Float a screenshot above every window.
@@ -126,6 +140,7 @@ cd SnapStash
 | `CaptureEngine.swift` | ScreenCaptureKit: freezing displays, listing windows front to back, and single-window capture |
 | `SelectionOverlay.swift` | The full-screen selection UI: area, window, magnifier and size readout |
 | `CaptureCoordinator.swift` | Runs a capture from shortcut to output; permission handling |
+| `Editor.swift` | The annotation editor: tools, canvas, undo, and rendering the result |
 | `Recorder.swift` | Screen recording (ScreenCaptureKit to MP4) and GIF export |
 | `CaptureOutput.swift` | Copy, save and drag; on-device text recognition; on-screen messages |
 | `QuickAccess.swift` | Corner thumbnails and pinned screenshots |
@@ -139,7 +154,7 @@ cd SnapStash
 - [x] Area, window and screen capture, Quick Access, Pin, Copy Text
 - [x] Full screen of one display or all displays
 - [x] Screen recording to MP4 and GIF
-- [ ] Annotation: arrows, boxes, text, highlighter, numbered steps, blur, crop
+- [x] Annotation: arrows, boxes, text, highlighter, numbered steps, blur, crop
 - [ ] Scrolling capture
 
 ## Releasing

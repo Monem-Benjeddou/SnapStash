@@ -78,6 +78,7 @@ private struct CaptureSettings: View {
     @AppStorage(Prefs.saveToFolderKey) private var saveToFolder = true
     @AppStorage(Prefs.showQuickAccessKey) private var showQuickAccess = true
     @AppStorage(Prefs.quickAccessSecondsKey) private var quickAccessSeconds = 8
+    @AppStorage(Prefs.openEditorKey) private var openEditor = false
     @AppStorage(Prefs.formatKey) private var format = ImageFormat.png
     @AppStorage(Prefs.windowShadowKey) private var windowShadow = true
     @AppStorage(Prefs.showCursorKey) private var showCursor = false
@@ -89,8 +90,10 @@ private struct CaptureSettings: View {
             Section("After capturing") {
                 Toggle("Copy to clipboard", isOn: $copyToClipboard)
                 Toggle("Save to folder", isOn: $saveToFolder)
+                Toggle("Open the editor to annotate", isOn: $openEditor)
                 Toggle("Show Quick Access thumbnail", isOn: $showQuickAccess)
-                if showQuickAccess {
+                    .disabled(openEditor)
+                if showQuickAccess && !openEditor {
                     Picker("Hide thumbnail after", selection: $quickAccessSeconds) {
                         Text("5 seconds").tag(5)
                         Text("8 seconds").tag(8)
