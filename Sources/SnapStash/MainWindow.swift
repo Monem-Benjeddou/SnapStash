@@ -67,10 +67,13 @@ struct HomeView: View {
             .frame(maxWidth: .infinity)
         }
         .background(Color(nsColor: .windowBackgroundColor))
-        // Re-check every second: macOS gives no notification when the permission changes.
-        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
-            let granted = ScreenPermission.isGranted
-            if granted != hasPermission { withAnimation(.snappy) { hasPermission = granted } }
+        // macOS gives no notification when the permission changes, so poll, but only while waiting for
+        // it: once granted there's nothing to watch (a later revocation shows up when a capture fails).
+        .task(id: hasPermission) {
+            while !hasPermission, !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                if ScreenPermission.isGranted { withAnimation(.snappy) { hasPermission = true } }
+            }
         }
         .frame(minWidth: 640, minHeight: 460)
     }

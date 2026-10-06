@@ -48,7 +48,12 @@ final class QuickAccess {
         let entry = entries.remove(at: index)
         entry.dismissWork?.cancel()
         NSAnimationContext.runAnimationGroup({ $0.duration = 0.15; entry.panel.animator().alphaValue = 0 },
-                                             completionHandler: { entry.panel.orderOut(nil) })
+                                             completionHandler: {
+            // Ordering out alone leaves AppKit holding the panel, and with it the full-size capture.
+            entry.panel.orderOut(nil)
+            entry.panel.contentView = nil
+            entry.panel.close()
+        })
         layout(animated: true)
     }
 
@@ -96,7 +101,7 @@ private struct QuickAccessCard: View {
 
     var body: some View {
         ZStack {
-            Image(nsImage: capture.nsImage)
+            Image(nsImage: capture.thumbnail)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -252,6 +257,8 @@ final class PinWindow: NSPanel {
 
     func closePin() {
         orderOut(nil)
+        contentView = nil // releases the image now rather than whenever AppKit lets go of the window
+        close()
         PinWindow.open.removeAll { $0 === self }
     }
 

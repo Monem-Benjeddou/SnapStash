@@ -120,7 +120,11 @@ final class SelectionOverlay {
         observers.removeAll()
         idleTimer?.invalidate()
         idleTimer = nil
-        for panel in panels { panel.orderOut(nil) }
+        for panel in panels {
+            panel.orderOut(nil)
+            panel.contentView = nil // the frozen screens are tens of MB each
+            panel.close()
+        }
         panels.removeAll()
         views.removeAll()
         NSCursor.arrow.set()
