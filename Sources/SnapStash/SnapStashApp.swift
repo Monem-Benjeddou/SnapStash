@@ -32,15 +32,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DockIcon.shared.isEnabled = { Prefs.showInDock }
             DockIcon.shared.start()
             AppState.shared.registerShortcuts()
-            if UserDefaults.standard.object(forKey: "hasLaunched") == nil {
+            CaptureLibrary.shared.start()
+            // First launch, permission still missing, or just set up: open the window so the next step
+            // is right there (granting permission needs a restart, so this also catches the relaunch).
+            let onboarded = UserDefaults.standard.bool(forKey: "onboardingComplete")
+            if UserDefaults.standard.object(forKey: "hasLaunched") == nil || !ScreenPermission.isGranted || !onboarded {
                 UserDefaults.standard.set(true, forKey: "hasLaunched")
-                Toast.show("SnapStash is in the menu bar. Press \(Prefs.shortcut(for: .area)?.display ?? "⌥⇧4") to capture.",
-                           symbol: "camera.viewfinder")
+                MainWindow.shared.show()
             }
         }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// Clicking the Dock icon (or opening the app again from Finder) shows the main window.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        MainActor.assumeIsolated { MainWindow.shared.show() }
+        return true
+    }
 }
 
 @main
@@ -63,6 +72,8 @@ private struct MenuBarMenu: View {
     @ObservedObject var state: AppState
 
     var body: some View {
+        Button("Open SnapStash") { MainWindow.shared.show() }
+        Divider()
         ForEach(CaptureAction.allCases) { action in
             Button {
                 CaptureCoordinator.shared.start(action)
@@ -76,7 +87,7 @@ private struct MenuBarMenu: View {
             NSWorkspace.shared.open(Prefs.folder)
         }
         if !ScreenPermission.isGranted {
-            Button("Grant Screen Recording Permission…") { ScreenPermission.openSettings() }
+            Button("Set Up Screen Recording…") { MainWindow.shared.show() }
         }
         Divider()
         SettingsLink { Text("Settings…") }

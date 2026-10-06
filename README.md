@@ -11,6 +11,9 @@ A free, open-source screenshot tool for macOS. Capture an area, a window, or the
 
 ## Features
 
+- **A home for your captures.** The SnapStash window has one-click capture buttons with their shortcuts, and a gallery of recent captures. Hover a capture to copy it, pin it, copy its text, or show it in Finder; double-click to open it, or drag it out.
+- **Easy first run.** One card walks you through the Screen Recording permission: one button, then macOS's own Quit & Reopen. Then SnapStash shows the three things to know, with a **Try it now** button. There are no pop-up alerts.
+
 - **Area capture (⌥⇧4).**
   - The screen freezes while you select, so menus and hover states stay exactly as they were.
   - A size readout shows the selection in pixels, and a magnifier helps you hit pixel-exact edges.
@@ -53,7 +56,7 @@ curl -fsSL https://raw.githubusercontent.com/Monem-Benjeddou/SnapStash/main/inst
 3. Open it. SnapStash isn't notarized by Apple (that requires a paid developer account), so macOS blocks the first launch:
    - **macOS 15 or later:** close the warning, open **System Settings › Privacy & Security**, scroll down, and click **Open Anyway** next to SnapStash.
    - **macOS 14:** right-click SnapStash.app, choose **Open**, then click **Open** again.
-4. The first capture asks for **Screen Recording** permission. Turn on SnapStash in System Settings, then reopen it from the menu bar or Settings.
+4. SnapStash opens a short setup card. Click **Allow Screen Recording**, turn on SnapStash in System Settings, then click **Quit & Reopen** when macOS offers it.
 
 ## Privacy
 
@@ -91,6 +94,8 @@ cd SnapStash
 | `CaptureCoordinator.swift` | Runs a capture from shortcut to output; permission handling |
 | `CaptureOutput.swift` | Copy, save and drag; on-device text recognition; on-screen messages |
 | `QuickAccess.swift` | Corner thumbnails and pinned screenshots |
+| `MainWindow.swift` | The SnapStash window: setup and first-run cards, capture buttons, gallery |
+| `Library.swift` | Watches the capture folder; actions on saved captures; thumbnail cache |
 | `Shortcuts.swift` | Global shortcuts, shown correctly for your keyboard layout |
 | `SettingsView.swift` | Settings, including the shortcut recorder |
 
