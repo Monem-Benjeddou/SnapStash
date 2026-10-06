@@ -6,7 +6,7 @@ let log = Logger(subsystem: "dev.snapstash.SnapStash", category: "capture")
 
 /// The things a shortcut can start.
 enum CaptureAction: String, CaseIterable, Identifiable {
-    case area, window, screen, text, record
+    case area, window, screen, text, record, scrolling
 
     var id: String { rawValue }
     var hotKeyID: UInt32 { UInt32(CaptureAction.allCases.firstIndex(of: self)! + 1) }
@@ -18,6 +18,7 @@ enum CaptureAction: String, CaseIterable, Identifiable {
         case .screen: return "Capture Screen"
         case .text: return "Copy Text from Screen"
         case .record: return "Record Screen"
+        case .scrolling: return "Scrolling Capture (Demo)"
         }
     }
 
@@ -28,6 +29,7 @@ enum CaptureAction: String, CaseIterable, Identifiable {
         case .screen: return "display"
         case .text: return "text.viewfinder"
         case .record: return "record.circle"
+        case .scrolling: return "arrow.down.doc"
         }
     }
 
@@ -40,6 +42,7 @@ enum CaptureAction: String, CaseIterable, Identifiable {
         case .screen: return Shortcut(keyCode: kVK_ANSI_3, modifiers: mods)
         case .text: return Shortcut(keyCode: kVK_ANSI_2, modifiers: mods)
         case .record: return Shortcut(keyCode: kVK_ANSI_6, modifiers: mods)
+        case .scrolling: return Shortcut(keyCode: kVK_ANSI_7, modifiers: mods)
         }
     }
 }

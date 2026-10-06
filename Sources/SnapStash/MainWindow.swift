@@ -339,6 +339,7 @@ private struct CaptureTile: View {
         case .screen: return "Full Screen"
         case .text: return "Copy Text"
         case .record: return recording ? "Stop Recording" : "Record"
+        case .scrolling: return "Scrolling (Demo)"
         }
     }
 }
