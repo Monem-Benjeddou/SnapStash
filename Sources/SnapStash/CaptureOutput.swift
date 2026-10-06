@@ -21,6 +21,22 @@ final class Capture: Identifiable {
 
     var nsImage: NSImage { NSImage(cgImage: image, size: pointSize) }
 
+    /// A small copy for the corner thumbnail. Drawing the full image there would keep a second
+    /// full-resolution copy in graphics memory (over 40 MB for a full Retina screen).
+    private(set) lazy var thumbnail: NSImage = {
+        let maxPixels: CGFloat = 600
+        let factor = min(1, maxPixels / CGFloat(max(image.width, image.height, 1)))
+        let width = max(Int(CGFloat(image.width) * factor), 1), height = max(Int(CGFloat(image.height) * factor), 1)
+        guard factor < 1,
+              let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nsImage }
+        context.interpolationQuality = .high
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let small = context.makeImage() else { return nsImage }
+        return NSImage(cgImage: small, size: NSSize(width: CGFloat(width) / 2, height: CGFloat(height) / 2))
+    }()
+
     var fileName: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
@@ -181,7 +197,7 @@ enum Toast {
 
     static func show(_ message: String, symbol: String = "checkmark.circle.fill") {
         hideWork?.cancel()
-        panel?.orderOut(nil)
+        panel?.close() // close, not just order out: AppKit keeps ordered-out windows alive
 
         let label = NSTextField(labelWithString: message)
         label.font = .systemFont(ofSize: 13, weight: .medium)
@@ -222,7 +238,7 @@ enum Toast {
         toast.orderFrontRegardless()
         panel = toast
 
-        let work = DispatchWorkItem { MainActor.assumeIsolated { Toast.panel?.orderOut(nil); Toast.panel = nil } }
+        let work = DispatchWorkItem { MainActor.assumeIsolated { Toast.panel?.close(); Toast.panel = nil } }
         hideWork = work
         // Problems stay up long enough to read.
         DispatchQueue.main.asyncAfter(deadline: .now() + (symbol.contains("exclamation") ? 4 : 1.8), execute: work)
