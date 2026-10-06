@@ -167,6 +167,11 @@ final class CaptureLibrary: ObservableObject {
         Task { await CaptureCoordinator.shared.copyText(from: capture.image) }
     }
 
+    func edit(_ item: Item) {
+        guard let capture = Self.capture(from: item.url) else { return missing(item) }
+        EditorWindow.open(capture, name: item.url.lastPathComponent)
+    }
+
     func reveal(_ item: Item) { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
 
     func open(_ item: Item) { NSWorkspace.shared.open(item.url) }

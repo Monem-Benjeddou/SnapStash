@@ -150,7 +150,9 @@ final class CaptureCoordinator {
         let copied = Prefs.copyToClipboard && capture.copyToClipboard()
         // A failed save says so; the capture is still in Quick Access (and on the clipboard) to retry.
         let saved = Prefs.saveToFolder && capture.saveReporting(quiet: true)
-        if Prefs.showQuickAccess || (Prefs.saveToFolder && !saved && !copied) {
+        if Prefs.openEditorAfterCapture {
+            EditorWindow.open(capture)
+        } else if Prefs.showQuickAccess || (Prefs.saveToFolder && !saved && !copied) {
             QuickAccess.shared.show(capture)
         } else if copied && !(Prefs.saveToFolder && !saved) {
             Toast.show("Copied to clipboard")

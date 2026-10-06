@@ -141,6 +141,10 @@ private struct QuickAccessCard: View {
                         }
                     }
                     HStack(spacing: 8) {
+                        CardButton(title: "Edit", symbol: "pencil.tip.crop.circle") {
+                            EditorWindow.open(capture)
+                            onClose()
+                        }
                         CardButton(title: "Pin", symbol: "pin") {
                             PinWindow.show(capture)
                             onClose()
@@ -176,12 +180,17 @@ private struct QuickAccessCard: View {
             withAnimation(.easeOut(duration: 0.12)) { hovering = inside }
             onHover(inside)
         }
+        .onTapGesture(count: 2) {
+            EditorWindow.open(capture)
+            onClose()
+        }
         .onDrag {
             // Dropping the thumbnail into another app hands it the image file.
             guard let url = capture.fileForDragging() else { return NSItemProvider() }
             return NSItemProvider(contentsOf: url) ?? NSItemProvider()
         }
         .contextMenu {
+            Button("Edit…") { EditorWindow.open(capture); onClose() }
             Button("Copy") { if capture.copyToClipboard() { onClose() } }
             Button("Save") { if capture.saveReporting() { onClose() } }
             Button("Save As…") { capture.saveAs(); onClose() }
@@ -293,6 +302,16 @@ private struct RecordingCard: View {
     }
 }
 
+/// Icon and title side by side, tight enough for three buttons in a row.
+private struct CompactLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 3) {
+            configuration.icon.font(.system(size: 10, weight: .semibold))
+            configuration.title.lineLimit(1)
+        }
+    }
+}
+
 private struct CardButton: View {
     let title: String
     let symbol: String
@@ -301,6 +320,7 @@ private struct CardButton: View {
     var body: some View {
         Button(action: action) {
             Label(title, systemImage: symbol)
+                .labelStyle(CompactLabelStyle())
                 .font(.system(size: 12, weight: .semibold))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 6)

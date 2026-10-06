@@ -62,6 +62,7 @@ enum Prefs {
     static let playSoundKey = "playSound"
     static let showInDockKey = "showInDock"
     static let fullScreenAllDisplaysKey = "fullScreenAllDisplays"
+    static let openEditorKey = "openEditorAfterCapture"
     static let recordingFormatKey = "recordingFormat"
     static let recordingFPSKey = "recordingFPS"
     static let recordCursorKey = "recordCursor"
@@ -81,6 +82,8 @@ enum Prefs {
     static var showInDock: Bool { bool(showInDockKey, true) }
     /// With several displays, Full Screen captures all of them in one image instead of the one under the pointer.
     static var fullScreenAllDisplays: Bool { bool(fullScreenAllDisplaysKey, false) }
+    /// Open the editor right after each capture, instead of the corner thumbnail.
+    static var openEditorAfterCapture: Bool { bool(openEditorKey, false) }
     static var recordingFormat: RecordingFormat {
         defaults.string(forKey: recordingFormatKey).flatMap(RecordingFormat.init(rawValue:)) ?? .mp4
     }
