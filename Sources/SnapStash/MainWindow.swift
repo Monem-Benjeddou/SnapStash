@@ -28,7 +28,7 @@ final class MainWindow {
             window.setFrameAutosaveName("SnapStashMain")
             self.window = window
         }
-        CaptureLibrary.shared.reload()
+        if !AppState.shared.galleryPaused { CaptureLibrary.shared.reload() }
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
     }
@@ -54,7 +54,11 @@ struct HomeView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 CaptureButtons(state: state, enabled: hasPermission && !state.permissionLost)
-                Gallery(library: library)
+                if state.galleryPaused {
+                    SafeModeCard { state.resumeGallery() }
+                } else {
+                    Gallery(library: library)
+                }
             }
             .padding(.horizontal, 32)
             .padding(.top, 12)
@@ -486,5 +490,30 @@ private struct FolderProblem: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         Prefs.folder = url
         library.start()
+    }
+}
+
+/// After SnapStash crashed twice right after starting: says what was left off and how to turn it back on.
+private struct SafeModeCard: View {
+    let resume: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: "lifepreserver").font(.title2).foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 10) {
+                Text("SnapStash started in safe mode").font(.headline)
+                Text("It quit unexpectedly twice right after starting, so your recent captures aren't loaded this time. Capturing works as usual. If it happens again after loading them, a damaged image in your capture folder is the likely cause.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button("Load Recent Captures", action: resume).buttonStyle(.borderedProminent)
+                    Button("Open Captures Folder") { NSWorkspace.shared.open(Prefs.folder) }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(18)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color.orange.opacity(0.1)))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.orange.opacity(0.3)))
     }
 }

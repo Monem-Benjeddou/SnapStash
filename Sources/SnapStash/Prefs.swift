@@ -73,7 +73,8 @@ enum Prefs {
     static var showInDock: Bool { bool(showInDockKey, true) }
     static var format: ImageFormat { defaults.string(forKey: formatKey).flatMap(ImageFormat.init(rawValue:)) ?? .png }
 
-    static let defaultFolder = FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask)[0]
+    static let defaultFolder = (FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first
+        ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Pictures", isDirectory: true))
         .appendingPathComponent("SnapStash", isDirectory: true)
 
     static var folder: URL {
@@ -85,7 +86,11 @@ enum Prefs {
         let key = "shortcut.\(action.rawValue)"
         if defaults.object(forKey: key) as? Bool == false { return nil } // explicitly cleared
         guard let data = defaults.data(forKey: key) else { return action.defaultShortcut }
-        return (try? JSONDecoder().decode(Shortcut.self, from: data)) ?? action.defaultShortcut
+        guard let saved = try? JSONDecoder().decode(Shortcut.self, from: data), saved.isValid else {
+            log.error("Saved shortcut for \(action.rawValue, privacy: .public) is unreadable; using the default")
+            return action.defaultShortcut
+        }
+        return saved
     }
 
     static func setShortcut(_ shortcut: Shortcut?, for action: CaptureAction) {

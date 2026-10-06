@@ -76,6 +76,12 @@ Everything happens on your Mac. Captures are saved only where you choose (`~/Pic
 
 When something goes wrong, SnapStash keeps your capture, says what happened in plain words, and offers a way out.
 
+- **Crashes are caught, and SnapStash comes back.**
+  - If SnapStash crashes (a runtime error, a memory error or an uncaught exception), it records what happened and reopens itself, then tells you it was reopened.
+  - If it stops responding for 45 seconds, it's restarted the same way. A short freeze is only logged.
+  - **Safe mode.** If it crashes twice in a row within two minutes of starting, it starts in safe mode: recent captures aren't loaded (a damaged image is the likeliest cause), and capturing still works. **Load Recent Captures** brings them back.
+  - A third quick crash stops the automatic reopening, so a crash loop can't run forever.
+- **Only one copy runs.** Opening a second copy (say, one in Downloads) brings the running one forward instead of starting another.
 - **A capture is never lost to a folder problem.**
   - If the save folder can't be used (an ejected drive, a deleted or moved folder, no write access), the capture is saved to `~/Pictures/SnapStash` instead, and SnapStash tells you so.
   - The window shows what's wrong with **Choose Another Folder**, **Use Pictures › SnapStash**, and **Try Again**.
@@ -86,7 +92,6 @@ When something goes wrong, SnapStash keeps your capture, says what happened in p
 - **One display fails.** With several displays, a display that can't be captured is skipped and the others still work.
 - **The window closes while you pick it.** SnapStash uses what was on screen when you clicked.
 - **The selection overlay never gets stuck.** It closes on its own if the displays change, the Mac goes to sleep, you switch users, or nothing happens for two minutes.
-- **Two copies running.** Opening a second copy (say, one in Downloads) hands over to the one already running instead of fighting over the shortcuts.
 - **Restarting is safe.** **Restart SnapStash** only quits once the reopen is scheduled, and the new copy waits for the old one to exit.
 - **Shortcut conflicts are shown.** If another app already uses a shortcut, the SnapStash window and Settings say so.
 - **Nothing is overwritten.** Captures taken within the same second get numbered file names.

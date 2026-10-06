@@ -253,7 +253,7 @@ final class OverlayView: NSView {
             let border = NSBezierPath(rect: frame.insetBy(dx: 1, dy: 1))
             border.lineWidth = 2
             border.stroke()
-            drawLabel("\(hoveredWindow.appName)  \(Int(hoveredWindow.frame.width)) × \(Int(hoveredWindow.frame.height))",
+            drawLabel("\(hoveredWindow.appName)  \(safeInt(hoveredWindow.frame.width)) × \(safeInt(hoveredWindow.frame.height))",
                       near: NSPoint(x: frame.midX, y: frame.midY), centered: true)
         } else if let selection {
             let path = NSBezierPath(rect: bounds)
@@ -265,7 +265,7 @@ final class OverlayView: NSView {
             let border = NSBezierPath(rect: selection.insetBy(dx: -0.5, dy: -0.5))
             border.lineWidth = 1
             border.stroke()
-            let pixels = "\(Int(selection.width * frozen.scale)) × \(Int(selection.height * frozen.scale))"
+            let pixels = "\(safeInt(selection.width * frozen.scale)) × \(safeInt(selection.height * frozen.scale))"
             drawLabel(pixels, near: NSPoint(x: selection.maxX, y: selection.minY), centered: false)
         } else {
             dim.withAlphaComponent(0.12).setFill()
@@ -322,7 +322,7 @@ final class OverlayView: NSView {
         ring.lineWidth = 2
         ring.stroke()
 
-        let coords = "\(Int(point.x * scale)), \(Int((bounds.height - point.y) * scale))"
+        let coords = "\(safeInt(point.x * scale)), \(safeInt((bounds.height - point.y) * scale))"
         drawLabel(coords, near: NSPoint(x: frame.midX, y: frame.minY - 4), centered: true, below: true)
     }
 

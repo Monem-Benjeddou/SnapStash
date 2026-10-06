@@ -266,7 +266,7 @@ final class PinWindow: NSPanel {
             let item = NSMenuItem(title: "\(value)%", action: #selector(setOpacity(_:)), keyEquivalent: "")
             item.tag = value
             item.target = self
-            item.state = Int((alphaValue * 100).rounded()) == value ? .on : .off
+            item.state = safeInt((alphaValue * 100).rounded()) == value ? .on : .off
             submenu.addItem(item)
         }
         opacity.submenu = submenu

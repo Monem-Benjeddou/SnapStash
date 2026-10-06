@@ -16,8 +16,14 @@ struct Shortcut: Codable, Equatable {
     }
 
     init(keyCode: Int, modifiers: Int) {
-        self.keyCode = UInt32(keyCode)
-        self.modifiers = UInt32(modifiers)
+        self.keyCode = UInt32(truncatingIfNeeded: max(keyCode, 0))
+        self.modifiers = UInt32(truncatingIfNeeded: max(modifiers, 0))
+    }
+
+    /// A real key with ⌘, ⌥ or ⌃. Saved shortcuts are checked against this, so damaged settings
+    /// fall back to the default instead of registering garbage.
+    var isValid: Bool {
+        keyCode < 128 && modifiers & UInt32(cmdKey | optionKey | controlKey) != 0
     }
 
     /// From a key event, or nil if it has no ⌘, ⌥ or ⌃ (a bare key can't be a global shortcut).
@@ -51,7 +57,7 @@ struct Shortcut: Codable, Equatable {
         var chars = [UniChar](repeating: 0, count: 4)
         let status = layoutData.withUnsafeBytes { buffer -> OSStatus in
             guard let layout = buffer.bindMemory(to: UCKeyboardLayout.self).baseAddress else { return -1 }
-            return UCKeyTranslate(layout, UInt16(keyCode), UInt16(kUCKeyActionDisplay), 0, UInt32(LMGetKbdType()),
+            return UCKeyTranslate(layout, UInt16(truncatingIfNeeded: keyCode), UInt16(kUCKeyActionDisplay), 0, UInt32(LMGetKbdType()),
                                   OptionBits(kUCKeyTranslateNoDeadKeysBit), &deadKeys, chars.count, &length, &chars)
         }
         guard status == noErr, length > 0 else { return "?" }
