@@ -7,7 +7,7 @@
 
 A free, open-source screenshot tool for macOS. Capture an area, a window, or the whole screen, then copy, save, drag, or pin it in one step. Or copy the text out of anything on screen.
 
-> **Early preview.** Capture, Quick Access, Pin, and Copy Text work today. Annotation, screen recording, and scrolling capture are next.
+> **Early preview.** Capture, screen recording (MP4 and GIF), Quick Access, Pin, and Copy Text work today. Annotation and scrolling capture are next.
 
 ![The SnapStash window: capture buttons and recent captures](docs/screenshots/home.jpg)
 
@@ -32,7 +32,14 @@ After setup, SnapStash shows the three things to know and a <b>Try it now</b> bu
   - Hover to highlight a window, then click to capture it.
   - The window is captured on its own, even if something covers it, with its shadow on a transparent background.
   - In area mode, a single click captures the window under the pointer, and Space switches between modes.
-- **Screen capture (⌥⇧3).** Captures the whole display under the pointer.
+- **Full screen capture (⌥⇧3).**
+  - Captures the display under the pointer, or every display in one image (Settings › Captures).
+  - While selecting an area or a window, press Return to capture the whole screen instead.
+- **Screen recording (⌥⇧6).**
+  - Drag an area, click a window, or press Return for the full screen, and recording starts.
+  - A small control shows the time and a Stop button. It's left out of the video, as is a dashed outline marking the recorded area. Press ⌥⇧6 again, click Stop, or use the menu bar to finish.
+  - Saves an MP4 (H.264, up to 4K, 30 or 60 fps) or an animated GIF sized for sharing. Any MP4 can be turned into a GIF from its thumbnail.
+  - Can include the Mac's own sound (Settings › Recording). The microphone is never recorded.
 - **Copy Text from Screen (⌥⇧2).** Select an area and its text goes straight to the clipboard. Recognition happens on your Mac with Apple's Vision framework.
 - **Quick Access.** After each capture, a thumbnail appears in the corner:
   - **Copy**, **Save** or **Pin** it, or copy the text in it.
@@ -119,6 +126,7 @@ cd SnapStash
 | `CaptureEngine.swift` | ScreenCaptureKit: freezing displays, listing windows front to back, and single-window capture |
 | `SelectionOverlay.swift` | The full-screen selection UI: area, window, magnifier and size readout |
 | `CaptureCoordinator.swift` | Runs a capture from shortcut to output; permission handling |
+| `Recorder.swift` | Screen recording (ScreenCaptureKit to MP4) and GIF export |
 | `CaptureOutput.swift` | Copy, save and drag; on-device text recognition; on-screen messages |
 | `QuickAccess.swift` | Corner thumbnails and pinned screenshots |
 | `MainWindow.swift` | The SnapStash window: setup and first-run cards, capture buttons, gallery |
@@ -129,8 +137,9 @@ cd SnapStash
 ## Roadmap
 
 - [x] Area, window and screen capture, Quick Access, Pin, Copy Text
+- [x] Full screen of one display or all displays
+- [x] Screen recording to MP4 and GIF
 - [ ] Annotation: arrows, boxes, text, highlighter, numbered steps, blur, crop
-- [ ] Screen recording to MP4 and GIF
 - [ ] Scrolling capture
 
 ## Releasing

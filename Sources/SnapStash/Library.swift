@@ -1,7 +1,10 @@
+import AVFoundation
 import AppKit
 import ImageIO
+import UniformTypeIdentifiers
 
 private let imageFileExtensions: Set<String> = ["png", "jpg", "jpeg", "heic", "tiff", "gif"]
+private let videoFileExtensions: Set<String> = ["mp4", "mov", "m4v"]
 
 /// The captures saved in the capture folder, newest first. Watches the folder so the gallery stays
 /// current whether a capture comes from SnapStash or a file is added or removed in Finder.
@@ -15,6 +18,10 @@ final class CaptureLibrary: ObservableObject {
         let bytes: Int
         var id: URL { url }
         var name: String { url.deletingPathExtension().lastPathComponent }
+        var isVideo: Bool { videoFileExtensions.contains(url.pathExtension.lowercased()) }
+        var isGIF: Bool { url.pathExtension.lowercased() == "gif" }
+        /// Still images: the ones that can be pinned, copied as an image, or read for text.
+        var isStill: Bool { !isVideo && !isGIF }
     }
 
     @Published private(set) var items: [Item] = []
@@ -95,7 +102,8 @@ final class CaptureLibrary: ObservableObject {
                 let urls = try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: keys,
                                                                        options: [.skipsHiddenFiles])
                 let items = urls.compactMap { url -> Item? in
-                    guard imageFileExtensions.contains(url.pathExtension.lowercased()),
+                    let ext = url.pathExtension.lowercased()
+                    guard imageFileExtensions.contains(ext) || videoFileExtensions.contains(ext),
                           let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true else { return nil }
                     return Item(url: url, date: values.creationDate ?? .distantPast, bytes: values.fileSize ?? 0)
                 }
@@ -125,10 +133,27 @@ final class CaptureLibrary: ObservableObject {
     // MARK: Actions on saved files
 
     func copy(_ item: Item) {
+        guard item.isStill else {
+            guard FileManager.default.fileExists(atPath: item.url.path) else { return missing(item) }
+            Self.copyFile(item.url)
+            return
+        }
         guard let image = NSImage(contentsOf: item.url) else { return missing(item) }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.writeObjects([image])
+        Toast.show("Copied to clipboard")
+    }
+
+    /// Puts a recording on the clipboard: the file (for Finder, Mail, Messages), plus the GIF data
+    /// itself for apps that paste animated images directly.
+    static func copyFile(_ url: URL) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.writeObjects([url as NSURL])
+        if url.pathExtension.lowercased() == "gif", let data = try? Data(contentsOf: url, options: .mappedIfSafe) {
+            pasteboard.setData(data, forType: NSPasteboard.PasteboardType(UTType.gif.identifier))
+        }
         Toast.show("Copied to clipboard")
     }
 
@@ -179,6 +204,13 @@ final class ThumbnailCache: @unchecked Sendable {
     func load(_ url: URL, maxPixels: Int = 640) async -> NSImage? {
         if let hit = cached(url) { return hit }
         let cgImage = await Task.detached(priority: .utility) { () -> CGImage? in
+            if videoFileExtensions.contains(url.pathExtension.lowercased()) {
+                // A frame just after the start: the very first one is often black.
+                let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
+                generator.maximumSize = CGSize(width: maxPixels, height: maxPixels)
+                generator.appliesPreferredTrackTransform = true
+                return try? await generator.image(at: CMTime(value: 1, timescale: 2)).image
+            }
             guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
             return CGImageSourceCreateThumbnailAtIndex(source, 0, [
                 kCGImageSourceCreateThumbnailFromImageAlways: true,

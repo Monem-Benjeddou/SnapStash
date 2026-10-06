@@ -7,7 +7,7 @@ final class QuickAccess {
     static let shared = QuickAccess()
 
     private struct Entry {
-        let capture: Capture
+        let id: UUID
         let panel: NSPanel
         var dismissWork: DispatchWorkItem?
     }
@@ -19,6 +19,28 @@ final class QuickAccess {
 
     func show(_ capture: Capture) {
         let aspect = CGFloat(capture.image.height) / CGFloat(max(capture.image.width, 1))
+        add(id: capture.id, aspect: aspect) { [weak self] in
+            QuickAccessCard(capture: capture,
+                            onHover: { hovering in self?.setPaused(capture.id, hovering) },
+                            onClose: { self?.dismiss(capture.id) })
+        }
+    }
+
+    /// A finished recording (MP4 or GIF).
+    func showRecording(_ url: URL) {
+        let id = UUID()
+        Task {
+            let poster = await ThumbnailCache.shared.load(url, maxPixels: 600)
+            let aspect = poster.map { $0.size.height / max($0.size.width, 1) } ?? 0.6
+            add(id: id, aspect: aspect) { [weak self] in
+                RecordingCard(url: url, poster: poster,
+                              onHover: { hovering in self?.setPaused(id, hovering) },
+                              onClose: { self?.dismiss(id) })
+            }
+        }
+    }
+
+    private func add<Content: View>(id: UUID, aspect: CGFloat, @ViewBuilder content: () -> Content) {
         let height = min(max(width * aspect, 90), 260)
         let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: width, height: height),
                             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -28,23 +50,20 @@ final class QuickAccess {
         panel.hasShadow = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.isReleasedWhenClosed = false
-        panel.contentView = NSHostingView(rootView: QuickAccessCard(
-            capture: capture,
-            onHover: { [weak self] hovering in self?.setPaused(capture.id, hovering) },
-            onClose: { [weak self] in self?.dismiss(capture.id) }))
-        entries.insert(Entry(capture: capture, panel: panel), at: 0)
+        panel.contentView = NSHostingView(rootView: content())
+        entries.insert(Entry(id: id, panel: panel), at: 0)
         layout(animated: false)
         panel.alphaValue = 0
         panel.orderFrontRegardless()
         NSAnimationContext.runAnimationGroup { $0.duration = 0.18; panel.animator().alphaValue = 1 }
-        scheduleDismiss(capture.id)
+        scheduleDismiss(id)
         layout(animated: true)
         // Keep the stack manageable.
-        if entries.count > 5, let oldest = entries.last { dismiss(oldest.capture.id) }
+        if entries.count > 5, let oldest = entries.last { dismiss(oldest.id) }
     }
 
     func dismiss(_ id: UUID) {
-        guard let index = entries.firstIndex(where: { $0.capture.id == id }) else { return }
+        guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
         let entry = entries.remove(at: index)
         entry.dismissWork?.cancel()
         NSAnimationContext.runAnimationGroup({ $0.duration = 0.15; entry.panel.animator().alphaValue = 0 },
@@ -58,7 +77,7 @@ final class QuickAccess {
     }
 
     private func setPaused(_ id: UUID, _ paused: Bool) {
-        guard let index = entries.firstIndex(where: { $0.capture.id == id }) else { return }
+        guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
         if paused {
             entries[index].dismissWork?.cancel()
             entries[index].dismissWork = nil
@@ -69,7 +88,7 @@ final class QuickAccess {
 
     private func scheduleDismiss(_ id: UUID) {
         let seconds = Prefs.quickAccessSeconds
-        guard seconds > 0, let index = entries.firstIndex(where: { $0.capture.id == id }) else { return }
+        guard seconds > 0, let index = entries.firstIndex(where: { $0.id == id }) else { return }
         entries[index].dismissWork?.cancel()
         let work = DispatchWorkItem { MainActor.assumeIsolated { QuickAccess.shared.dismiss(id) } }
         entries[index].dismissWork = work
@@ -170,6 +189,106 @@ private struct QuickAccessCard: View {
             Button("Copy Text") { Task { await CaptureCoordinator.shared.copyText(from: capture.image); onClose() } }
             Divider()
             Button("Close") { onClose() }
+        }
+    }
+}
+
+/// The corner card for a recording: its first frame, and what you'd do next.
+private struct RecordingCard: View {
+    let url: URL
+    let poster: NSImage?
+    let onHover: (Bool) -> Void
+    let onClose: () -> Void
+    @State private var hovering = false
+    @State private var makingGIF = false
+
+    private var isGIF: Bool { url.pathExtension.lowercased() == "gif" }
+
+    var body: some View {
+        ZStack {
+            Color.black
+            if let poster {
+                Image(nsImage: poster).resizable().aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
+            }
+            if hovering {
+                Color.black.opacity(0.45)
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        CardButton(title: "Copy", symbol: "doc.on.doc") {
+                            CaptureLibrary.copyFile(url)
+                            onClose()
+                        }
+                        CardButton(title: "Open", symbol: "play.fill") {
+                            NSWorkspace.shared.open(url)
+                            onClose()
+                        }
+                    }
+                    HStack(spacing: 8) {
+                        if !isGIF {
+                            CardButton(title: makingGIF ? "Making…" : "GIF", symbol: "photo.stack") { makeGIF() }
+                                .disabled(makingGIF)
+                        }
+                        CardButton(title: "Show", symbol: "folder") {
+                            NSWorkspace.shared.activateFileViewerSelecting([url])
+                            onClose()
+                        }
+                    }
+                }
+                .padding(10)
+            } else {
+                Image(systemName: isGIF ? "photo.stack.fill" : "play.circle.fill")
+                    .font(.system(size: 30))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .shadow(radius: 4)
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            if hovering {
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .frame(width: 22, height: 22)
+                        .background(Circle().fill(.black.opacity(0.6)))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .padding(6)
+                .help("Close")
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.white.opacity(0.25), lineWidth: 1))
+        .onHover { inside in
+            withAnimation(.easeOut(duration: 0.12)) { hovering = inside }
+            onHover(inside)
+        }
+        .onTapGesture(count: 2) { NSWorkspace.shared.open(url); onClose() }
+        .onDrag { NSItemProvider(contentsOf: url) ?? NSItemProvider() }
+        .contextMenu {
+            Button("Open") { NSWorkspace.shared.open(url); onClose() }
+            Button("Copy") { CaptureLibrary.copyFile(url); onClose() }
+            if !isGIF { Button("Save as GIF") { makeGIF() } }
+            Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]); onClose() }
+            Divider()
+            Button("Close") { onClose() }
+        }
+    }
+
+    private func makeGIF() {
+        makingGIF = true
+        Task {
+            let gif = url.deletingPathExtension().appendingPathExtension("gif")
+            do {
+                try await GIFExporter.export(url, to: gif)
+                CaptureLibrary.shared.reload()
+                Toast.show("Saved as GIF")
+                onClose()
+                QuickAccess.shared.showRecording(gif)
+            } catch {
+                Toast.show("Couldn't make a GIF: \(error.localizedDescription)", symbol: "exclamationmark.triangle.fill")
+            }
+            makingGIF = false
         }
     }
 }

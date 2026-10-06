@@ -268,10 +268,11 @@ private struct CaptureButtons: View {
     let enabled: Bool
 
     var body: some View {
-        HStack(spacing: 14) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 14)], spacing: 14) {
             ForEach(CaptureAction.allCases) { action in
                 CaptureTile(action: action, shortcut: shortcut(action), enabled: enabled,
-                            conflict: state.shortcutConflicts.contains(action))
+                            conflict: state.shortcutConflicts.contains(action),
+                            recording: action == .record && state.isRecording)
             }
         }
     }
@@ -287,6 +288,7 @@ private struct CaptureTile: View {
     let shortcut: String?
     let enabled: Bool
     let conflict: Bool
+    var recording = false
     @State private var hovering = false
 
     var body: some View {
@@ -294,9 +296,9 @@ private struct CaptureTile: View {
             CaptureCoordinator.shared.start(action)
         } label: {
             VStack(alignment: .leading, spacing: 14) {
-                Image(systemName: action.symbol)
+                Image(systemName: recording ? "stop.circle.fill" : action.symbol)
                     .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(enabled ? Color.accentColor : .secondary)
+                    .foregroundStyle(recording ? .red : enabled ? Color.accentColor : .secondary)
                     .frame(height: 26)
                 VStack(alignment: .leading, spacing: 6) {
                     Text(shortTitle).font(.headline)
@@ -336,6 +338,7 @@ private struct CaptureTile: View {
         case .window: return "Window"
         case .screen: return "Full Screen"
         case .text: return "Copy Text"
+        case .record: return recording ? "Stop Recording" : "Record"
         }
     }
 }
@@ -408,10 +411,19 @@ private struct GalleryCard: View {
                     RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.35))
                     HStack(spacing: 8) {
                         IconButton(symbol: "doc.on.doc", help: "Copy") { library.copy(item) }
-                        IconButton(symbol: "pin", help: "Pin to screen") { library.pin(item) }
-                        IconButton(symbol: "text.viewfinder", help: "Copy text") { library.copyText(item) }
+                        if item.isStill {
+                            IconButton(symbol: "pin", help: "Pin to screen") { library.pin(item) }
+                            IconButton(symbol: "text.viewfinder", help: "Copy text") { library.copyText(item) }
+                        } else {
+                            IconButton(symbol: "play.fill", help: "Open") { library.open(item) }
+                        }
                         IconButton(symbol: "folder", help: "Show in Finder") { library.reveal(item) }
                     }
+                } else if !item.isStill {
+                    Image(systemName: item.isGIF ? "photo.stack.fill" : "play.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .shadow(radius: 4)
                 }
             }
             .aspectRatio(16 / 10, contentMode: .fit)
@@ -431,8 +443,10 @@ private struct GalleryCard: View {
         .contextMenu {
             Button("Open") { library.open(item) }
             Button("Copy") { library.copy(item) }
-            Button("Copy Text") { library.copyText(item) }
-            Button("Pin to Screen") { library.pin(item) }
+            if item.isStill {
+                Button("Copy Text") { library.copyText(item) }
+                Button("Pin to Screen") { library.pin(item) }
+            }
             Button("Show in Finder") { library.reveal(item) }
             Divider()
             Button("Move to Trash", role: .destructive) { library.trash(item) }
