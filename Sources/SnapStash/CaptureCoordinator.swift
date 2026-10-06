@@ -16,6 +16,11 @@ final class CaptureCoordinator {
     private var isCapturing = false
 
     func start(_ action: CaptureAction) {
+        // The record shortcut also stops a recording in progress.
+        if action == .record, ScreenRecorder.shared.isRecording {
+            ScreenRecorder.shared.stop()
+            return
+        }
         guard !isCapturing else { return }
         guard ensurePermission() else { return }
         isCapturing = true
@@ -42,17 +47,31 @@ final class CaptureCoordinator {
         let frozen = try await CaptureEngine.freezeScreens(content)
 
         if action == .screen {
-            let screen = NSScreen.underMouse
-            guard let shot = frozen.first(where: { $0.screen == screen }) ?? frozen.first else { return }
-            finish(Capture(image: shot.image, scale: shot.scale))
+            if Prefs.fullScreenAllDisplays, frozen.count > 1, let combined = Self.combine(frozen) {
+                finish(Capture(image: combined.image, scale: combined.scale))
+            } else {
+                let screen = NSScreen.underMouse
+                guard let shot = frozen.first(where: { $0.screen == screen }) ?? frozen.first else { return }
+                finish(Capture(image: shot.image, scale: shot.scale))
+            }
             return
         }
 
         let windows = CaptureEngine.windowTargets(content)
         let result = await select(frozen: frozen, windows: windows, windowMode: action == .window)
+        if action == .record {
+            try await ScreenRecorder.shared.begin(result, content: content)
+            return
+        }
         switch result {
         case .cancelled:
             return
+        case .screen(let screen):
+            if action == .text {
+                await copyText(from: screen.image)
+            } else {
+                finish(Capture(image: screen.image, scale: screen.scale))
+            }
         case .area(let screen, let rect):
             guard let image = screen.crop(rect) else { return }
             if action == .text {
@@ -79,6 +98,26 @@ final class CaptureCoordinator {
                 finish(Capture(image: image, scale: scale))
             }
         }
+    }
+
+    /// Every display in one image, laid out as they're arranged in System Settings, at the
+    /// sharpest display's scale. Gaps between differently sized displays stay transparent.
+    static func combine(_ frozen: [FrozenScreen]) -> (image: CGImage, scale: CGFloat)? {
+        let union = frozen.reduce(CGRect.null) { $0.union($1.screen.frame) }
+        let scale = frozen.map(\.scale).max() ?? 1
+        let width = safeInt(union.width * scale), height = safeInt(union.height * scale)
+        guard width > 0, height > 0, width * height < 400_000_000,
+              let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        context.interpolationQuality = .high
+        for shot in frozen {
+            // AppKit and Core Graphics both put the origin at the bottom left here.
+            let frame = shot.screen.frame.offsetBy(dx: -union.minX, dy: -union.minY)
+            context.draw(shot.image, in: CGRect(x: frame.minX * scale, y: frame.minY * scale,
+                                                width: frame.width * scale, height: frame.height * scale))
+        }
+        return context.makeImage().map { ($0, scale) }
     }
 
     /// Crops a global AppKit rect out of the frozen screen it's mostly on.

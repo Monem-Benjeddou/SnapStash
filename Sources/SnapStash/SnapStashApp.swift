@@ -13,6 +13,9 @@ final class AppState: ObservableObject {
     @Published var permissionLost = false
     /// Safe mode after repeated crashes: the gallery stays unloaded until you ask for it.
     @Published var galleryPaused = Stability.safeMode
+    /// When the current recording started; nil when not recording.
+    @Published var recordingStartedAt: Date?
+    var isRecording: Bool { recordingStartedAt != nil }
 
     func resumeGallery() {
         Stability.leaveSafeMode()
@@ -85,8 +88,10 @@ struct SnapStashApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra("SnapStash", systemImage: "camera.viewfinder") {
+        MenuBarExtra {
             MenuBarMenu(state: state)
+        } label: {
+            Image(systemName: state.isRecording ? "record.circle.fill" : "camera.viewfinder")
         }
 
         Settings {
@@ -99,6 +104,10 @@ private struct MenuBarMenu: View {
     @ObservedObject var state: AppState
 
     var body: some View {
+        if state.isRecording {
+            Button("Stop Recording") { ScreenRecorder.shared.stop() }
+            Divider()
+        }
         Button("Open SnapStash") { MainWindow.shared.show() }
         Divider()
         ForEach(CaptureAction.allCases) { action in

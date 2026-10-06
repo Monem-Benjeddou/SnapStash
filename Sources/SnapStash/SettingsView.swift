@@ -10,6 +10,8 @@ struct SettingsView: View {
                 .tabItem { Label("General", systemImage: "gearshape") }
             CaptureSettings()
                 .tabItem { Label("Captures", systemImage: "camera.viewfinder") }
+            RecordingSettings()
+                .tabItem { Label("Recording", systemImage: "record.circle") }
             ShortcutSettings(state: state)
                 .tabItem { Label("Shortcuts", systemImage: "command") }
         }
@@ -79,6 +81,7 @@ private struct CaptureSettings: View {
     @AppStorage(Prefs.formatKey) private var format = ImageFormat.png
     @AppStorage(Prefs.windowShadowKey) private var windowShadow = true
     @AppStorage(Prefs.showCursorKey) private var showCursor = false
+    @AppStorage(Prefs.fullScreenAllDisplaysKey) private var fullScreenAllDisplays = false
     @State private var folder = Prefs.folder
 
     var body: some View {
@@ -114,6 +117,10 @@ private struct CaptureSettings: View {
             }
 
             Section("Capturing") {
+                Picker("Full Screen captures", selection: $fullScreenAllDisplays) {
+                    Text("The display with the pointer").tag(false)
+                    Text("All displays in one image").tag(true)
+                }
                 Toggle("Include the window shadow in window captures", isOn: $windowShadow)
                 Toggle("Show the mouse pointer in captures", isOn: $showCursor)
             }
@@ -132,6 +139,35 @@ private struct CaptureSettings: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         Prefs.folder = url
         folder = url
+    }
+}
+
+private struct RecordingSettings: View {
+    @AppStorage(Prefs.recordingFormatKey) private var format = RecordingFormat.mp4
+    @AppStorage(Prefs.recordingFPSKey) private var fps = 30
+    @AppStorage(Prefs.recordCursorKey) private var cursor = true
+    @AppStorage(Prefs.recordAudioKey) private var audio = false
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("Save recordings as", selection: $format) {
+                    Text("MP4 video").tag(RecordingFormat.mp4)
+                    Text("Animated GIF").tag(RecordingFormat.gif)
+                }
+                Picker("Frame rate", selection: $fps) {
+                    Text("30 fps").tag(30)
+                    Text("60 fps (smoother, larger files)").tag(60)
+                }
+                Toggle("Show the mouse pointer", isOn: $cursor)
+                Toggle("Record the Mac's sound", isOn: $audio)
+            } footer: {
+                Text("Press \(Prefs.shortcut(for: .record)?.display ?? "the Record shortcut") to start: drag an area, click a window, or press Return for the full screen. Press it again, or click Stop, to finish. GIFs are sized for sharing (up to 960 pixels); any recording can also be turned into a GIF from its thumbnail.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -155,7 +191,7 @@ private struct ShortcutSettings: View {
                     }
                 }
             } footer: {
-                Text("Click a shortcut, then press the new keys. Shortcuts need ⌘, ⌥ or ⌃. In the capture screen: drag for an area, click for a window, Space to switch, Shift for a square, Esc to cancel.")
+                Text("Click a shortcut, then press the new keys. Shortcuts need ⌘, ⌥ or ⌃. In the capture screen: drag for an area, click for a window, Return for the full screen, Space to switch, Shift for a square, Esc to cancel.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {

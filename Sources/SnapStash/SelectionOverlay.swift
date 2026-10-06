@@ -3,6 +3,8 @@ import ScreenCaptureKit
 
 enum SelectionResult {
     case area(FrozenScreen, CGRect)
+    /// Return pressed: the whole display under the pointer.
+    case screen(FrozenScreen)
     case window(WindowTarget)
     case cancelled
 }
@@ -70,6 +72,7 @@ final class SelectionOverlay {
             switch Int(event.keyCode) {
             case 53: self.finish(.cancelled); return nil                 // esc
             case 49: self.toggleWindowMode(); return nil                 // space
+            case 36, 76: self.finishWithScreenUnderMouse(); return nil   // return, enter: full screen
             default: return event
             }
         }
@@ -104,6 +107,12 @@ final class SelectionOverlay {
         idleTimer = Timer.scheduledTimer(withTimeInterval: 120, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.finish(.cancelled) }
         }
+    }
+
+    private func finishWithScreenUnderMouse() {
+        let mouse = NSEvent.mouseLocation
+        guard let view = views.first(where: { NSMouseInRect(mouse, $0.frozenScreen.screen.frame, false) }) ?? views.first else { return }
+        finish(.screen(view.frozenScreen))
     }
 
     func toggleWindowMode() {
@@ -159,6 +168,7 @@ final class OverlayView: NSView {
     override func cursorUpdate(with event: NSEvent) { NSCursor.crosshair.set() }
 
     private var windowMode: Bool { overlay?.windowMode ?? false }
+    var frozenScreen: FrozenScreen { frozen }
 
     /// Local point -> global AppKit point.
     private func global(_ point: NSPoint) -> NSPoint {
@@ -280,8 +290,12 @@ final class OverlayView: NSView {
             drawCrosshair(at: mouse)
             drawMagnifier(at: mouse)
         }
-        if windowMode && hoveredWindow == nil, let mouse, NSMouseInRect(mouse, bounds, false) {
-            drawLabel("Click a window  ·  Space for area  ·  Esc to cancel", near: mouse, centered: false)
+        // How it works, on the screen with the pointer, until a selection starts.
+        if selection == nil, let mouse, NSMouseInRect(mouse, bounds, false) {
+            let hint = windowMode
+                ? "Click a window  ·  Space: area  ·  ↩ full screen  ·  Esc: cancel"
+                : "Drag an area  ·  Click a window  ·  ↩ full screen  ·  Esc: cancel"
+            drawLabel(hint, near: NSPoint(x: bounds.midX, y: 60), centered: true)
         }
     }
 

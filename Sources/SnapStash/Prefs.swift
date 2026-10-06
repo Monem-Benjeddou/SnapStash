@@ -6,7 +6,7 @@ let log = Logger(subsystem: "dev.snapstash.SnapStash", category: "capture")
 
 /// The things a shortcut can start.
 enum CaptureAction: String, CaseIterable, Identifiable {
-    case area, window, screen, text
+    case area, window, screen, text, record
 
     var id: String { rawValue }
     var hotKeyID: UInt32 { UInt32(CaptureAction.allCases.firstIndex(of: self)! + 1) }
@@ -17,6 +17,7 @@ enum CaptureAction: String, CaseIterable, Identifiable {
         case .window: return "Capture Window"
         case .screen: return "Capture Screen"
         case .text: return "Copy Text from Screen"
+        case .record: return "Record Screen"
         }
     }
 
@@ -26,6 +27,7 @@ enum CaptureAction: String, CaseIterable, Identifiable {
         case .window: return "macwindow"
         case .screen: return "display"
         case .text: return "text.viewfinder"
+        case .record: return "record.circle"
         }
     }
 
@@ -37,6 +39,7 @@ enum CaptureAction: String, CaseIterable, Identifiable {
         case .window: return Shortcut(keyCode: kVK_ANSI_5, modifiers: mods)
         case .screen: return Shortcut(keyCode: kVK_ANSI_3, modifiers: mods)
         case .text: return Shortcut(keyCode: kVK_ANSI_2, modifiers: mods)
+        case .record: return Shortcut(keyCode: kVK_ANSI_6, modifiers: mods)
         }
     }
 }
@@ -58,6 +61,11 @@ enum Prefs {
     static let showCursorKey = "showCursor"
     static let playSoundKey = "playSound"
     static let showInDockKey = "showInDock"
+    static let fullScreenAllDisplaysKey = "fullScreenAllDisplays"
+    static let recordingFormatKey = "recordingFormat"
+    static let recordingFPSKey = "recordingFPS"
+    static let recordCursorKey = "recordCursor"
+    static let recordAudioKey = "recordAudio"
 
     private static var defaults: UserDefaults { .standard }
     private static func bool(_ key: String, _ fallback: Bool) -> Bool { defaults.object(forKey: key) as? Bool ?? fallback }
@@ -71,6 +79,15 @@ enum Prefs {
     static var showCursor: Bool { bool(showCursorKey, false) }
     static var playSound: Bool { bool(playSoundKey, true) }
     static var showInDock: Bool { bool(showInDockKey, true) }
+    /// With several displays, Full Screen captures all of them in one image instead of the one under the pointer.
+    static var fullScreenAllDisplays: Bool { bool(fullScreenAllDisplaysKey, false) }
+    static var recordingFormat: RecordingFormat {
+        defaults.string(forKey: recordingFormatKey).flatMap(RecordingFormat.init(rawValue:)) ?? .mp4
+    }
+    static var recordingFPS: Int { [30, 60].contains(defaults.integer(forKey: recordingFPSKey)) ? defaults.integer(forKey: recordingFPSKey) : 30 }
+    static var recordCursor: Bool { bool(recordCursorKey, true) }
+    /// The Mac's own sound (not the microphone), which needs no extra permission.
+    static var recordAudio: Bool { bool(recordAudioKey, false) }
     static var format: ImageFormat { defaults.string(forKey: formatKey).flatMap(ImageFormat.init(rawValue:)) ?? .png }
 
     static let defaultFolder = (FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first
