@@ -114,25 +114,11 @@ final class CaptureCoordinator {
         }
     }
 
-    /// Screen Recording permission: asks once, then explains how to grant it.
+    /// Without Screen Recording permission, opens the main window, whose card walks through granting it.
+    /// No alerts: one calm place to fix it.
     private func ensurePermission() -> Bool {
         if ScreenPermission.isGranted { return true }
-        if ScreenPermission.request() { return true }
-        NSApp.activate()
-        let alert = NSAlert()
-        alert.messageText = "SnapStash needs Screen Recording permission"
-        alert.informativeText = """
-            Turn on SnapStash in System Settings › Privacy & Security › Screen & System Audio Recording, \
-            then reopen SnapStash. Captures stay on your Mac.
-            """
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Reopen SnapStash")
-        alert.addButton(withTitle: "Cancel")
-        switch alert.runModal() {
-        case .alertFirstButtonReturn: ScreenPermission.openSettings()
-        case .alertSecondButtonReturn: ScreenPermission.relaunch()
-        default: break
-        }
+        MainWindow.shared.show()
         return false
     }
 }
