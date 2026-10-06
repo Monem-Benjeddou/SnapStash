@@ -36,38 +36,87 @@ final class Capture: Identifiable {
         }
     }
 
-    func copyToClipboard() {
+    /// Puts the image on the clipboard as PNG and TIFF. Returns false (and says so) if neither worked.
+    @discardableResult
+    func copyToClipboard() -> Bool {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        if let png = encoded(as: .png) { pasteboard.setData(png, forType: .png) }
-        if let tiff = nsImage.tiffRepresentation { pasteboard.setData(tiff, forType: .tiff) }
+        var ok = false
+        if let png = encoded(as: .png) { ok = pasteboard.setData(png, forType: .png) || ok }
+        if let tiff = nsImage.tiffRepresentation { ok = pasteboard.setData(tiff, forType: .tiff) || ok }
+        if !ok {
+            log.error("Couldn't write the capture to the clipboard")
+            Toast.show("Couldn't copy to the clipboard", symbol: "exclamationmark.triangle.fill")
+        }
+        return ok
     }
 
-    /// Saves into the capture folder (once; later calls return the same file).
+    /// Saves into the capture folder (once; later calls return the same file). If that folder can't
+    /// be used (an ejected drive, a deleted folder, no write access), saves to the default folder
+    /// instead, so a capture is never lost to a folder problem.
     @discardableResult
     func save() throws -> URL {
         if let savedURL, FileManager.default.fileExists(atPath: savedURL.path) { return savedURL }
-        let folder = Prefs.folder
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         guard let data = encoded() else { throw CocoaError(.fileWriteUnknown) }
+        do {
+            savedURL = try write(data, into: Prefs.folder)
+        } catch where Prefs.folder.standardizedFileURL != Prefs.defaultFolder.standardizedFileURL {
+            log.error("Save to \(Prefs.folder.path, privacy: .public) failed, using the default folder: \(error.localizedDescription, privacy: .public)")
+            savedURL = try write(data, into: Prefs.defaultFolder)
+        }
+        return savedURL!
+    }
+
+    private func write(_ data: Data, into folder: URL) throws -> URL {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let ext = Prefs.format.fileExtension
         var url = folder.appendingPathComponent(fileName)
         var counter = 2
         while FileManager.default.fileExists(atPath: url.path) {
-            url = folder.appendingPathComponent(fileName.replacingOccurrences(of: ".\(Prefs.format.fileExtension)",
-                                                                            with: " \(counter).\(Prefs.format.fileExtension)"))
+            url = folder.appendingPathComponent(fileName.replacingOccurrences(of: ".\(ext)", with: " \(counter).\(ext)"))
             counter += 1
         }
         try data.write(to: url, options: .atomic)
-        savedURL = url
         return url
     }
+
+    /// Saves and tells you how it went. `quiet` skips the message when everything went as expected
+    /// (e.g. right after a capture, where Quick Access already shows it). Returns whether it was saved.
+    @discardableResult
+    func saveReporting(quiet: Bool = false) -> Bool {
+        do {
+            let url = try save()
+            let folder = url.deletingLastPathComponent()
+            if folder.standardizedFileURL != Prefs.folder.standardizedFileURL {
+                Toast.show("“\(Prefs.folder.lastPathComponent)” isn't available, so this was saved to Pictures › SnapStash",
+                           symbol: "exclamationmark.triangle.fill")
+            } else if !quiet {
+                Toast.show("Saved to \(folder.lastPathComponent)")
+            }
+            return true
+        } catch {
+            log.error("Save failed: \(error.localizedDescription, privacy: .public)")
+            Toast.show("Couldn't save: \(error.localizedDescription)", symbol: "exclamationmark.triangle.fill")
+            return false
+        }
+    }
+
+    /// Where drag-out copies go; emptied at launch so they don't pile up.
+    static let dragFolder = FileManager.default.temporaryDirectory.appendingPathComponent("SnapStash Drags", isDirectory: true)
 
     /// A file for dragging into other apps: the saved file if there is one, otherwise a temporary copy.
     func fileForDragging() -> URL? {
         if let savedURL, FileManager.default.fileExists(atPath: savedURL.path) { return savedURL }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-        guard let data = encoded(), (try? data.write(to: url, options: .atomic)) != nil else { return nil }
-        return url
+        do {
+            try FileManager.default.createDirectory(at: Self.dragFolder, withIntermediateDirectories: true)
+            let url = Self.dragFolder.appendingPathComponent(fileName)
+            guard let data = encoded() else { return nil }
+            try data.write(to: url, options: .atomic)
+            return url
+        } catch {
+            log.error("Couldn't prepare a file for dragging: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     /// Asks where to save, for "Save As…".
@@ -92,7 +141,11 @@ enum TextRecognizer {
     /// Recognizes text in reading order, one line per line of text.
     static func recognize(_ image: CGImage) async throws -> String {
         try await withCheckedThrowingContinuation { continuation in
+            // Vision can report a failure both through the handler and by throwing from perform();
+            // resuming a continuation twice would crash, so only the first report counts.
+            let once = Once()
             let request = VNRecognizeTextRequest { request, error in
+                guard once.claim() else { return }
                 if let error {
                     continuation.resume(throwing: error)
                     return
@@ -113,7 +166,7 @@ enum TextRecognizer {
                 do {
                     try VNImageRequestHandler(cgImage: image).perform([request])
                 } catch {
-                    continuation.resume(throwing: error)
+                    if once.claim() { continuation.resume(throwing: error) }
                 }
             }
         }
@@ -171,6 +224,7 @@ enum Toast {
 
         let work = DispatchWorkItem { MainActor.assumeIsolated { Toast.panel?.orderOut(nil); Toast.panel = nil } }
         hideWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8, execute: work)
+        // Problems stay up long enough to read.
+        DispatchQueue.main.asyncAfter(deadline: .now() + (symbol.contains("exclamation") ? 4 : 1.8), execute: work)
     }
 }

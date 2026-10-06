@@ -18,6 +18,8 @@ final class SelectionOverlay {
     private var panels: [OverlayPanel] = []
     private var views: [OverlayView] = []
     private var keyMonitor: Any?
+    private var observers: [(NotificationCenter, NSObjectProtocol)] = []
+    private var idleTimer: Timer?
     private var completion: ((SelectionResult) -> Void)?
     private(set) var windowMode: Bool
 
@@ -64,6 +66,7 @@ final class SelectionOverlay {
 
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
+            self.noteActivity()
             switch Int(event.keyCode) {
             case 53: self.finish(.cancelled); return nil                 // esc
             case 49: self.toggleWindowMode(); return nil                 // space
@@ -71,6 +74,36 @@ final class SelectionOverlay {
             }
         }
         for view in views { view.refreshHover() }
+
+        // The overlay covers every screen, so it must never outlive the situation it was made for:
+        // the frozen images no longer match after a display change, and nobody is there after sleep
+        // or a user switch.
+        let app = NotificationCenter.default, workspace = NSWorkspace.shared.notificationCenter
+        let cancelOn: [(NotificationCenter, Notification.Name, String?)] = [
+            (app, NSApplication.didChangeScreenParametersNotification, "Capture cancelled because the displays changed"),
+            (workspace, NSWorkspace.willSleepNotification, nil),
+            (workspace, NSWorkspace.sessionDidResignActiveNotification, nil),
+        ]
+        for (center, name, message) in cancelOn {
+            let token = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self, self.completion != nil else { return }
+                    self.finish(.cancelled)
+                    if let message { Toast.show(message, symbol: "exclamationmark.triangle.fill") }
+                }
+            }
+            observers.append((center, token))
+        }
+        noteActivity()
+    }
+
+    /// Restarts the idle timer. If nothing happens for two minutes (e.g. focus was lost so Esc can't
+    /// reach us), the overlay closes itself rather than leaving the screens covered.
+    func noteActivity() {
+        idleTimer?.invalidate()
+        idleTimer = Timer.scheduledTimer(withTimeInterval: 120, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.finish(.cancelled) }
+        }
     }
 
     func toggleWindowMode() {
@@ -83,6 +116,10 @@ final class SelectionOverlay {
         self.completion = nil
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         keyMonitor = nil
+        for (center, token) in observers { center.removeObserver(token) }
+        observers.removeAll()
+        idleTimer?.invalidate()
+        idleTimer = nil
         for panel in panels { panel.orderOut(nil) }
         panels.removeAll()
         views.removeAll()
@@ -146,6 +183,7 @@ final class OverlayView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         NSCursor.crosshair.set()
+        overlay?.noteActivity()
         mouse = convert(event.locationInWindow, from: nil)
         updateHover()
         needsDisplay = true

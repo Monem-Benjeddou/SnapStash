@@ -9,6 +9,16 @@ A free, open-source screenshot tool for macOS. Capture an area, a window, or the
 
 > **Early preview.** Capture, Quick Access, Pin, and Copy Text work today. Annotation, screen recording, and scrolling capture are next.
 
+![The SnapStash window: capture buttons and recent captures](docs/screenshots/home.jpg)
+
+<details>
+<summary>First run</summary>
+
+After setup, SnapStash shows the three things to know and a <b>Try it now</b> button.
+
+![The first-run card](docs/screenshots/first-run.jpg)
+</details>
+
 ## Features
 
 - **A home for your captures.** The SnapStash window has one-click capture buttons with their shortcuts, and a gallery of recent captures. Hover a capture to copy it, pin it, copy its text, or show it in Finder; double-click to open it, or drag it out.
@@ -64,9 +74,21 @@ Everything happens on your Mac. Captures are saved only where you choose (`~/Pic
 
 ## Reliability
 
-- **Saving never fails silently.** If the folder can't be written, a message tells you why. The capture is still on the clipboard and in Quick Access.
-- **Screen Recording permission.** If it's missing, SnapStash explains how to grant it and can reopen itself, since macOS only applies the permission after a restart.
-- **Shortcut conflicts are shown.** If another app already uses a shortcut, Settings says so.
+When something goes wrong, SnapStash keeps your capture, says what happened in plain words, and offers a way out.
+
+- **A capture is never lost to a folder problem.**
+  - If the save folder can't be used (an ejected drive, a deleted or moved folder, no write access), the capture is saved to `~/Pictures/SnapStash` instead, and SnapStash tells you so.
+  - The window shows what's wrong with **Choose Another Folder**, **Use Pictures › SnapStash**, and **Try Again**.
+  - A folder on an external drive is picked up again as soon as the drive is back.
+  - If neither saving nor copying works, the capture stays in Quick Access, so you can drag it out or try again.
+- **Permission turned off while SnapStash is running.** Instead of a cryptic error, the setup card returns and explains how to turn it back on.
+- **The screen capture service hangs.** macOS's capture service occasionally stops responding. SnapStash gives up after a few seconds and lets you try again, instead of refusing every capture until it's restarted.
+- **One display fails.** With several displays, a display that can't be captured is skipped and the others still work.
+- **The window closes while you pick it.** SnapStash uses what was on screen when you clicked.
+- **The selection overlay never gets stuck.** It closes on its own if the displays change, the Mac goes to sleep, you switch users, or nothing happens for two minutes.
+- **Two copies running.** Opening a second copy (say, one in Downloads) hands over to the one already running instead of fighting over the shortcuts.
+- **Restarting is safe.** **Restart SnapStash** only quits once the reopen is scheduled, and the new copy waits for the old one to exit.
+- **Shortcut conflicts are shown.** If another app already uses a shortcut, the SnapStash window and Settings say so.
 - **Nothing is overwritten.** Captures taken within the same second get numbered file names.
 - **Logging.** Errors go to the unified log:
   ```sh

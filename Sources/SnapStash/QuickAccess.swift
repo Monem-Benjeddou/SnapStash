@@ -107,18 +107,13 @@ private struct QuickAccessCard: View {
                 VStack(spacing: 8) {
                     HStack(spacing: 8) {
                         CardButton(title: "Copy", symbol: "doc.on.doc") {
-                            capture.copyToClipboard()
-                            Toast.show("Copied to clipboard")
-                            onClose()
+                            if capture.copyToClipboard() {
+                                Toast.show("Copied to clipboard")
+                                onClose()
+                            }
                         }
                         CardButton(title: "Save", symbol: "square.and.arrow.down") {
-                            do {
-                                let url = try capture.save()
-                                Toast.show("Saved to \(url.deletingLastPathComponent().lastPathComponent)")
-                                onClose()
-                            } catch {
-                                Toast.show("Couldn't save: \(error.localizedDescription)", symbol: "exclamationmark.triangle.fill")
-                            }
+                            if capture.saveReporting() { onClose() }
                         }
                     }
                     HStack(spacing: 8) {
@@ -163,8 +158,8 @@ private struct QuickAccessCard: View {
             return NSItemProvider(contentsOf: url) ?? NSItemProvider()
         }
         .contextMenu {
-            Button("Copy") { capture.copyToClipboard(); onClose() }
-            Button("Save") { _ = try? capture.save(); onClose() }
+            Button("Copy") { if capture.copyToClipboard() { onClose() } }
+            Button("Save") { if capture.saveReporting() { onClose() } }
             Button("Save As…") { capture.saveAs(); onClose() }
             Button("Pin to Screen") { PinWindow.show(capture); onClose() }
             Button("Copy Text") { Task { await CaptureCoordinator.shared.copyText(from: capture.image); onClose() } }
@@ -281,12 +276,8 @@ final class PinWindow: NSPanel {
         return menu
     }
 
-    @objc private func copyImage() { capture.copyToClipboard(); Toast.show("Copied to clipboard") }
-    @objc private func saveImage() {
-        do { _ = try capture.save(); Toast.show("Saved") } catch {
-            Toast.show("Couldn't save: \(error.localizedDescription)", symbol: "exclamationmark.triangle.fill")
-        }
-    }
+    @objc private func copyImage() { if capture.copyToClipboard() { Toast.show("Copied to clipboard") } }
+    @objc private func saveImage() { capture.saveReporting() }
     @objc private func actualSize() {
         var frame = self.frame
         frame.size = capture.pointSize
