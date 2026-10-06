@@ -11,6 +11,14 @@ final class AppState: ObservableObject {
     /// Set when macOS refuses a capture although the preflight check said yes: the permission was
     /// turned off while SnapStash was running. Only a relaunch clears it, as only a relaunch picks up the change.
     @Published var permissionLost = false
+    /// Safe mode after repeated crashes: the gallery stays unloaded until you ask for it.
+    @Published var galleryPaused = Stability.safeMode
+
+    func resumeGallery() {
+        Stability.leaveSafeMode()
+        galleryPaused = false
+        CaptureLibrary.shared.start()
+    }
 
     func registerShortcuts() {
         var conflicts: Set<CaptureAction> = []
@@ -31,22 +39,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Stability.didFinishLaunching()
         MainActor.assumeIsolated {
-            // Two copies (say, one in Applications and one in Downloads) would fight over the shortcuts.
-            // Hand over to the one already running, which opens its window, and bow out.
-            if let other = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
-                .first(where: { $0 != NSRunningApplication.current && !$0.isTerminated }), let url = other.bundleURL {
-                log.notice("SnapStash is already running (pid \(other.processIdentifier)); handing over")
-                NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { _, _ in
-                    DispatchQueue.main.async { NSApp.terminate(nil) }
-                }
-                return
-            }
             try? FileManager.default.removeItem(at: Capture.dragFolder) // leftovers from earlier drags
             DockIcon.shared.isEnabled = { Prefs.showInDock }
             DockIcon.shared.start()
             AppState.shared.registerShortcuts()
+            // Safe mode leaves the gallery unloaded: decoding a damaged image file is the likeliest
+            // thing to crash at every launch. Capturing still works.
+            if Stability.safeMode {
+                MainWindow.shared.show()
+                return
+            }
             CaptureLibrary.shared.start()
+            if let crash = Stability.previousCrash {
+                Toast.show(crash.message, symbol: "exclamationmark.triangle.fill")
+            }
             // First launch, permission still missing, or just set up: open the window so the next step
             // is right there (granting permission needs a restart, so this also catches the relaunch).
             let onboarded = UserDefaults.standard.bool(forKey: "onboardingComplete")
@@ -69,7 +77,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct SnapStashApp: App {
     @NSApplicationDelegateAdaptor private var delegate: AppDelegate
-    @ObservedObject private var state = AppState.shared
+    @ObservedObject private var state: AppState
+
+    init() {
+        Stability.start() // before anything else, so crashes and hangs from here on are caught
+        _state = ObservedObject(wrappedValue: AppState.shared)
+    }
 
     var body: some Scene {
         MenuBarExtra("SnapStash", systemImage: "camera.viewfinder") {

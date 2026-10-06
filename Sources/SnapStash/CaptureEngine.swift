@@ -104,8 +104,8 @@ enum CaptureEngine {
             let filter = SCContentFilter(display: display, excludingApplications: own, exceptingWindows: [])
             let config = SCStreamConfiguration()
             let scale = CGFloat(filter.pointPixelScale)
-            config.width = Int(filter.contentRect.width * scale)
-            config.height = Int(filter.contentRect.height * scale)
+            config.width = safeInt(filter.contentRect.width * scale)
+            config.height = safeInt(filter.contentRect.height * scale)
             config.showsCursor = Prefs.showCursor
             config.captureResolution = .best
             do {
@@ -146,8 +146,8 @@ enum CaptureEngine {
         let filter = SCContentFilter(desktopIndependentWindow: window)
         let config = SCStreamConfiguration()
         let scale = CGFloat(filter.pointPixelScale)
-        config.width = Int(filter.contentRect.width * scale)
-        config.height = Int(filter.contentRect.height * scale)
+        config.width = safeInt(filter.contentRect.width * scale)
+        config.height = safeInt(filter.contentRect.height * scale)
         config.showsCursor = false
         config.captureResolution = .best
         config.ignoreShadowsSingleWindow = !Prefs.windowShadow
