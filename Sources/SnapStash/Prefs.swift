@@ -114,13 +114,23 @@ enum ScreenPermission {
     }
 
     /// Restarts the app; macOS only applies a newly granted Screen Recording permission after a relaunch.
+    /// Only quits once the reopen is scheduled, so a failure can't leave SnapStash closed.
+    @MainActor
     static func relaunch() {
         let path = Bundle.main.bundlePath
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/bin/sh")
-        task.arguments = ["-c", "sleep 0.5; open \"$0\"", path]
-        try? task.run()
-        NSApp.terminate(nil)
+        // Waits until this process has fully exited, so the new one doesn't see it and hand over to it.
+        task.arguments = ["-c", "while kill -0 \"$1\" 2>/dev/null; do sleep 0.1; done; open \"$0\"",
+                          path, String(ProcessInfo.processInfo.processIdentifier)]
+        do {
+            try task.run()
+            NSApp.terminate(nil)
+        } catch {
+            log.error("Relaunch failed: \(error.localizedDescription, privacy: .public)")
+            Toast.show("Couldn't restart SnapStash. Quit it from the menu bar and open it again.",
+                       symbol: "exclamationmark.triangle.fill")
+        }
     }
 }
 

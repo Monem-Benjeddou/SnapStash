@@ -24,6 +24,8 @@ final class CaptureLibrary: ObservableObject {
     private var watchedPath: String?
     private var defaultsObserver: NSObjectProtocol?
 
+    private var mountObservers: [NSObjectProtocol] = []
+
     private init() {
         defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
                                                                   object: nil, queue: .main) { _ in
@@ -32,6 +34,21 @@ final class CaptureLibrary: ObservableObject {
                 if library.watchedPath != Prefs.folder.path { library.start() }
             }
         }
+        // A capture folder on an external drive comes and goes with the drive.
+        let workspace = NSWorkspace.shared.notificationCenter
+        mountObservers = [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification].map { name in
+            workspace.addObserver(forName: name, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { CaptureLibrary.shared.start() }
+            }
+        }
+    }
+
+    /// Whether the chosen folder is somewhere other than the default.
+    var usesCustomFolder: Bool { Prefs.folder.standardizedFileURL != Prefs.defaultFolder.standardizedFileURL }
+
+    func useDefaultFolder() {
+        UserDefaults.standard.removeObject(forKey: Prefs.folderKey)
+        start()
     }
 
     /// (Re)starts watching the current capture folder.
@@ -39,13 +56,30 @@ final class CaptureLibrary: ObservableObject {
         watcher?.cancel()
         watcher = nil
         let folder = Prefs.folder
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         watchedPath = folder.path
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        } catch {
+            log.error("Capture folder unavailable: \(error.localizedDescription, privacy: .public)")
+            items = []
+            folderProblem = Self.unavailableMessage(folder)
+            return
+        }
         let descriptor = Darwin.open(folder.path, O_EVTONLY)
         if descriptor >= 0 {
             let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: descriptor, eventMask: [.write, .rename, .delete],
                                                                    queue: .main)
-            source.setEventHandler { MainActor.assumeIsolated { CaptureLibrary.shared.reload() } }
+            source.setEventHandler { [weak source] in
+                MainActor.assumeIsolated {
+                    // The folder itself was moved or deleted: the watch is now on a dead file, so start over
+                    // (which recreates the folder, or reports why it can't).
+                    if let events = source?.data, !events.isDisjoint(with: [.rename, .delete]) {
+                        CaptureLibrary.shared.start()
+                    } else {
+                        CaptureLibrary.shared.reload()
+                    }
+                }
+            }
             source.setCancelHandler { close(descriptor) }
             source.resume()
             watcher = source
@@ -74,10 +108,18 @@ final class CaptureLibrary: ObservableObject {
             } catch {
                 await MainActor.run {
                     CaptureLibrary.shared.items = []
-                    CaptureLibrary.shared.folderProblem = "Can't read \(folder.lastPathComponent): \(error.localizedDescription)"
+                    CaptureLibrary.shared.folderProblem = CaptureLibrary.unavailableMessage(folder)
                 }
             }
         }
+    }
+
+    static func unavailableMessage(_ folder: URL) -> String {
+        let name = "“\(folder.lastPathComponent)”"
+        if folder.standardizedFileURL == Prefs.defaultFolder.standardizedFileURL {
+            return "SnapStash can't use its folder \(name). Captures are still copied and shown in the corner."
+        }
+        return "\(name) isn't available (a disconnected drive, or a moved folder?). New captures are saved to Pictures › SnapStash until it's back."
     }
 
     // MARK: Actions on saved files

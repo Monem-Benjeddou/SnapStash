@@ -46,14 +46,14 @@ struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 header
-                if !hasPermission {
-                    PermissionCard()
+                if !hasPermission || state.permissionLost {
+                    PermissionCard(lost: state.permissionLost && hasPermission)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 } else if !onboardingComplete {
                     ReadyCard(state: state) { withAnimation(.snappy) { onboardingComplete = true } }
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
-                CaptureButtons(state: state, enabled: hasPermission)
+                CaptureButtons(state: state, enabled: hasPermission && !state.permissionLost)
                 Gallery(library: library)
             }
             .padding(.horizontal, 32)
@@ -102,6 +102,8 @@ struct HomeView: View {
 
 /// Shown only until Screen Recording is allowed. One button does the asking; no alerts anywhere else.
 private struct PermissionCard: View {
+    /// Was working, then got turned off (or macOS forgot it, e.g. after an update): different words, same fix.
+    var lost = false
     @State private var asked = UserDefaults.standard.bool(forKey: "askedScreenPermission")
 
     var body: some View {
@@ -116,14 +118,18 @@ private struct PermissionCard: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("One step before your first capture").font(.title3.weight(.semibold))
-                    Text("macOS asks every screenshot app for Screen Recording access. SnapStash only looks at your screen when you capture, and nothing ever leaves your Mac.")
+                    Text(lost ? "Screen Recording was turned off" : "One step before your first capture")
+                        .font(.title3.weight(.semibold))
+                    Text(lost
+                         ? "macOS stopped SnapStash from capturing. Turn Screen Recording back on for SnapStash, then restart it."
+                         : "macOS asks every screenshot app for Screen Recording access. SnapStash only looks at your screen when you capture, and nothing ever leaves your Mac.")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Step(number: 1, text: "Click **Allow Screen Recording** below. System Settings opens.", done: asked)
+                    Step(number: 1, text: lost ? "Click **Open System Settings** below." : "Click **Allow Screen Recording** below. System Settings opens.",
+                         done: asked && !lost)
                     Step(number: 2, text: "Turn on the switch next to **SnapStash**.", done: false)
                     Step(number: 3, text: "When macOS offers **Quit & Reopen**, click it. (Or use **Restart SnapStash** here.)", done: false)
                 }
@@ -132,12 +138,12 @@ private struct PermissionCard: View {
                     Button {
                         allow()
                     } label: {
-                        Text("Allow Screen Recording").padding(.horizontal, 6)
+                        Text(lost ? "Open System Settings" : "Allow Screen Recording").padding(.horizontal, 6)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
 
-                    if asked {
+                    if asked || lost {
                         Button("Restart SnapStash") { ScreenPermission.relaunch() }
                             .controlSize(.large)
                     }
@@ -152,7 +158,7 @@ private struct PermissionCard: View {
 
     private func allow() {
         // The system prompt appears only the first time; after that, go straight to the right pane.
-        if !ScreenPermission.request() { ScreenPermission.openSettings() }
+        if lost || !ScreenPermission.request() { ScreenPermission.openSettings() }
         UserDefaults.standard.set(true, forKey: "askedScreenPermission")
         withAnimation(.snappy) { asked = true }
     }
@@ -349,7 +355,7 @@ private struct Gallery: View {
             }
 
             if let problem = library.folderProblem {
-                Label(problem, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                FolderProblem(message: problem, library: library)
             } else if library.items.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "photo.on.rectangle.angled").font(.system(size: 34)).foregroundStyle(.tertiary)
@@ -443,5 +449,42 @@ private struct IconButton: View {
         }
         .buttonStyle(.plain)
         .help(help)
+    }
+}
+
+/// The capture folder can't be used: what happened, and the two ways out.
+private struct FolderProblem: View {
+    let message: String
+    @ObservedObject var library: CaptureLibrary
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).font(.title3)
+            VStack(alignment: .leading, spacing: 10) {
+                Text(message).fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button("Choose Another Folder…") { chooseFolder() }
+                    if library.usesCustomFolder {
+                        Button("Use Pictures › SnapStash") { library.useDefaultFolder() }
+                    }
+                    Button("Try Again") { library.start() }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.1)))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.orange.opacity(0.3)))
+    }
+
+    private func chooseFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Use Folder"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Prefs.folder = url
+        library.start()
     }
 }

@@ -25,6 +25,11 @@ final class CaptureCoordinator {
             defer { isCapturing = false }
             do {
                 try await run(action)
+            } catch where CaptureError.isPermissionDenied(error) {
+                // Turned off while SnapStash was running: the setup card explains how to turn it back on.
+                log.error("Capture refused: Screen Recording permission is off")
+                AppState.shared.permissionLost = true
+                MainWindow.shared.show()
             } catch {
                 log.error("Capture failed: \(error.localizedDescription, privacy: .public)")
                 Toast.show("Capture failed: \(error.localizedDescription)", symbol: "exclamationmark.triangle.fill")
@@ -56,14 +61,37 @@ final class CaptureCoordinator {
                 finish(Capture(image: image, scale: screen.scale))
             }
         case .window(let target):
-            let image = try await CaptureEngine.capture(window: target.window)
-            let scale = NSScreen.screens.first { $0.frame.intersects(target.frame) }?.backingScaleFactor ?? 2
+            let image: CGImage
+            let scale: CGFloat
+            do {
+                image = try await CaptureEngine.capture(window: target.window)
+                scale = NSScreen.screens.first { $0.frame.intersects(target.frame) }?.backingScaleFactor ?? 2
+            } catch where !CaptureError.isPermissionDenied(error) {
+                // The window closed or moved in the meantime: use what was on screen when you picked it.
+                log.error("Window capture failed, using the frozen screen: \(error.localizedDescription, privacy: .public)")
+                guard let (cropped, frozenScale) = Self.crop(target.frame, from: frozen) else { throw error }
+                image = cropped
+                scale = frozenScale
+            }
             if action == .text {
                 await copyText(from: image)
             } else {
                 finish(Capture(image: image, scale: scale))
             }
         }
+    }
+
+    /// Crops a global AppKit rect out of the frozen screen it's mostly on.
+    private static func crop(_ rect: CGRect, from frozen: [FrozenScreen]) -> (CGImage, CGFloat)? {
+        let best = frozen.max { a, b in
+            let ia = a.screen.frame.intersection(rect), ib = b.screen.frame.intersection(rect)
+            return ia.width * ia.height < ib.width * ib.height
+        }
+        guard let best else { return nil }
+        let visible = best.screen.frame.intersection(rect)
+        guard !visible.isEmpty else { return nil }
+        let local = visible.offsetBy(dx: -best.screen.frame.minX, dy: -best.screen.frame.minY)
+        return best.crop(local).map { ($0, best.scale) }
     }
 
     private func select(frozen: [FrozenScreen], windows: [WindowTarget], windowMode: Bool) async -> SelectionResult {
@@ -80,19 +108,12 @@ final class CaptureCoordinator {
     /// Applies the after-capture settings: copy, save, and show Quick Access.
     private func finish(_ capture: Capture) {
         if Prefs.playSound { Self.shutterSound?.play() }
-        if Prefs.copyToClipboard { capture.copyToClipboard() }
-        if Prefs.saveToFolder {
-            do {
-                try capture.save()
-            } catch {
-                log.error("Save failed: \(error.localizedDescription, privacy: .public)")
-                Toast.show("Couldn't save to \(Prefs.folder.lastPathComponent): \(error.localizedDescription)",
-                           symbol: "exclamationmark.triangle.fill")
-            }
-        }
-        if Prefs.showQuickAccess {
+        let copied = Prefs.copyToClipboard && capture.copyToClipboard()
+        // A failed save says so; the capture is still in Quick Access (and on the clipboard) to retry.
+        let saved = Prefs.saveToFolder && capture.saveReporting(quiet: true)
+        if Prefs.showQuickAccess || (Prefs.saveToFolder && !saved && !copied) {
             QuickAccess.shared.show(capture)
-        } else if Prefs.copyToClipboard {
+        } else if copied && !(Prefs.saveToFolder && !saved) {
             Toast.show("Copied to clipboard")
         }
     }
@@ -106,7 +127,10 @@ final class CaptureCoordinator {
             }
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
-            pasteboard.setString(text, forType: .string)
+            guard pasteboard.setString(text, forType: .string) else {
+                Toast.show("Couldn't copy the text to the clipboard", symbol: "exclamationmark.triangle.fill")
+                return
+            }
             let lines = text.split(separator: "\n").count
             Toast.show("Copied \(lines) line\(lines == 1 ? "" : "s") of text")
         } catch {
@@ -117,7 +141,7 @@ final class CaptureCoordinator {
     /// Without Screen Recording permission, opens the main window, whose card walks through granting it.
     /// No alerts: one calm place to fix it.
     private func ensurePermission() -> Bool {
-        if ScreenPermission.isGranted { return true }
+        if ScreenPermission.isGranted && !AppState.shared.permissionLost { return true }
         MainWindow.shared.show()
         return false
     }
